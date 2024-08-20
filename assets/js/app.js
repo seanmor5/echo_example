@@ -1,20 +1,3 @@
-// If you want to use Phoenix channels, run `mix help phx.gen.channel`
-// to get started and then uncomment the line below.
-// import "./user_socket.js"
-
-// You can include dependencies in two ways.
-//
-// The simplest option is to put them in assets/vendor and
-// import them using relative paths:
-//
-//     import "../vendor/some-package.js"
-//
-// Alternatively, you can `npm install some-package --prefix assets` and import
-// them using a path starting with the package name:
-//
-//     import "some-package"
-//
-
 // Include phoenix_html to handle method=PUT/DELETE in forms and buttons.
 import "phoenix_html"
 // Establish Phoenix Socket and LiveView configuration.
@@ -93,7 +76,7 @@ const Conversation = {
     });
 
     this.speakerContext = new (window.AudioContext || window.webkitAudioContext)({
-      sampleRate: 44_100
+      sampleRate: 22_050
     });
 
     // Playback
@@ -105,11 +88,12 @@ const Conversation = {
 
       switch (type) {
         case "audio":
+          case "audio":
           const data = decoded.audio;
           const buffer = data.slice(0, data.length).buffer;
 
           const token = new TextDecoder("ascii").decode(data.slice(0, 8));
-          const audio = new Int16Array(buffer, 8);
+          const audio = new Uint8Array(buffer, 8);  // Changed to Uint8Array for MP3 data
 
           this.enqueueAudioData({ token, audio });
           break;
@@ -196,20 +180,17 @@ const Conversation = {
     this.isPlaying = true;
 
     if (audioData) {
-      const float32Data = new Float32Array(audioData.length);
-
-      for (let i = 0; i < audioData.length; i++) {
-        float32Data[i] = audioData[i] / 0x8000;
-      }
-
-      const audioBuffer = this.speakerContext.createBuffer(1, float32Data.length, 44100);
-      audioBuffer.getChannelData(0).set(float32Data);
-
-      this.source = this.speakerContext.createBufferSource();
-      this.source.buffer = audioBuffer;
-      this.source.connect(this.speakerContext.destination);
-      this.source.onended = () => this.playFromQueue();
-      this.source.start();
+      // Decode MP3 data
+      this.speakerContext.decodeAudioData(audioData.buffer, (audioBuffer) => {
+        this.source = this.speakerContext.createBufferSource();
+        this.source.buffer = audioBuffer;
+        this.source.connect(this.speakerContext.destination);
+        this.source.onended = () => this.playFromQueue();
+        this.source.start();
+      }, (error) => {
+        console.error('Error decoding audio data:', error);
+        this.playFromQueue();  // Move to next audio in queue if there's an error
+      });
     }
   },
 
